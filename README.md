@@ -30,11 +30,11 @@ The plugin uses public Hermes capabilities including native Project/session RPC,
 
 ## Install
 
-The intended distribution channel is a public GitHub repository. Replace `<owner>` below with the published repository owner.
+The plugin is distributed from the public OpenSpek GitHub repository.
 
 1. Install the repository in a disabled state:
 
-   `hermes plugins install 'https://github.com/<owner>/project-attention.git#plugin' --no-enable`
+   `hermes plugins install 'https://github.com/OpenSpek/project-attention.git#plugin' --no-enable`
 
 2. Enable its read-only backend without tool-override permission:
 
