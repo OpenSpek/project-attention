@@ -34,7 +34,7 @@ The intended distribution channel is a public GitHub repository. Replace `<owner
 
 1. Install the repository in a disabled state:
 
-   `hermes plugins install https://github.com/<owner>/project-attention.git#plugin --no-enable`
+   `hermes plugins install 'https://github.com/<owner>/project-attention.git#plugin' --no-enable`
 
 2. Enable its read-only backend without tool-override permission:
 
