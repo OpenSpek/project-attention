@@ -34,7 +34,7 @@ The intended distribution channel is a public GitHub repository. Replace `<owner
 
 1. Install the repository in a disabled state:
 
-   `hermes plugins install https://github.com/<owner>/project-attention.git --no-enable`
+   `hermes plugins install https://github.com/<owner>/project-attention.git#plugin --no-enable`
 
 2. Enable its read-only backend without tool-override permission:
 
@@ -97,9 +97,9 @@ From the repository root:
 
 1. `python tests/test_attention_backend.py`
 2. `node --test tests/plugin-contract.test.mjs`
-3. `node --check desktop/plugin.js`
-4. `python -m py_compile dashboard/plugin_api.py`
-5. `hermes plugins doctor . --ci`
+3. `node --check plugin/desktop/plugin.js`
+4. `python -m py_compile plugin/dashboard/plugin_api.py`
+5. `hermes plugins doctor plugin --ci`
 
 The release candidate was also dogfooded in a live native Project: zero-attention invisibility, the attention popup, exact folder reveal, and cleanup back to the invisible state were verified.
 

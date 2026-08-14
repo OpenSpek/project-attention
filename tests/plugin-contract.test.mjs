@@ -6,7 +6,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const pluginRoot = path.join(here, '..')
+const pluginRoot = path.join(here, '..', 'plugin')
 const pluginPath = path.join(pluginRoot, 'desktop', 'plugin.js')
 const manifestPath = path.join(pluginRoot, 'dashboard', 'manifest.json')
 const pluginYamlPath = path.join(pluginRoot, 'plugin.yaml')

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "dashboard" / "plugin_api.py"
+MODULE_PATH = ROOT / "plugin" / "dashboard" / "plugin_api.py"
 
 
 def load_module():
