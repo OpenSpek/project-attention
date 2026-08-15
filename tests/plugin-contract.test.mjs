@@ -18,7 +18,7 @@ function loadCore() {
   const context = { URLSearchParams }
   vm.createContext(context)
   vm.runInContext(
-    `${match[1]}\nthis.core = { findCurrentProject, indicatorVisible, sessionBelongsToProject, exactSessionId, resolveStoredSessionId, buildAttentionModel, revealMatchedFolder: typeof revealMatchedFolder === 'function' ? revealMatchedFolder : undefined }`,
+    `${match[1]}\nthis.core = { findCurrentProject, selectCurrentProject: typeof selectCurrentProject === 'function' ? selectCurrentProject : undefined, indicatorVisible, sessionBelongsToProject, exactSessionId, resolveStoredSessionId, buildAttentionModel, revealMatchedFolder: typeof revealMatchedFolder === 'function' ? revealMatchedFolder : undefined }`,
     context
   )
   return { source, ...context.core }
@@ -143,6 +143,38 @@ test('current Project uses the longest exact folder boundary match', () => {
   assert.equal(findCurrentProject(candidates, ''), null)
 })
 
+test('native active Project outranks stale host workspace and session context', () => {
+  const { selectCurrentProject, buildAttentionModel } = loadCore()
+  assert.equal(typeof selectCurrentProject, 'function')
+  const selected = selectCurrentProject(projects, 'p_other', 'C:/work/current')
+  assert.equal(selected.project.id, 'p_other')
+  assert.equal(selected.authority, 'native')
+
+  const view = buildAttentionModel({
+    projects,
+    currentProjectId: selected.project.id,
+    currentProjectAuthority: selected.authority,
+    snapshotsByProject: {
+      p_current: snapshot(projects[0]),
+      p_other: snapshot(projects[1], [{ id: 't_other', useful_summary: 'Blocked in active Project' }])
+    },
+    treesByProject: { p_current: tree({ id: 's_current' }), p_other: tree({ id: 's_other' }) },
+    activeStoredSessionId: 's_current'
+  })
+
+  assert.equal(view.currentMatches, true)
+  assert.equal(view.current.project.name, 'Other Project')
+  assert.equal(view.current.count, 1)
+  assert.deepEqual(view.background, [])
+})
+
+test('status indicator uses the supported warning dot component', () => {
+  const { source } = loadCore()
+  assert.match(source, /\bStatusDot\b/)
+  assert.match(source, /jsx\(StatusDot,\s*\{[^}]*tone:\s*['"]warn['"]/s)
+  assert.doesNotMatch(source, /bg-\(--ui-yellow\)/)
+})
+
 test('routine matched view omits session success copy while preserving the mismatch exception', () => {
   const { source } = loadCore()
   assert.doesNotMatch(source, /Current active session/)
@@ -190,11 +222,11 @@ test('background row opens only its exact supported session mapping', () => {
   assert.doesNotMatch(source, /host\.openSession\([^\n]*(title|name)/)
 })
 
-test('package metadata identifies the v2.1 candidate consistently', () => {
+test('package metadata identifies the v0.2.2 release consistently', () => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   const pluginYaml = fs.readFileSync(pluginYamlPath, 'utf8')
-  assert.equal(manifest.version, '0.2.1')
-  assert.match(pluginYaml, /^version:\s*0\.2\.1$/m)
+  assert.equal(manifest.version, '0.2.2')
+  assert.match(pluginYaml, /^version:\s*0\.2\.2$/m)
 })
 
 test('package metadata also avoids an alarm-style warning triangle', () => {

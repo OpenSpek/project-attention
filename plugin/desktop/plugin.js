@@ -6,6 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   ScrollArea,
+  StatusDot,
   STATUSBAR_AREAS,
   useQuery,
   useValue
@@ -44,6 +45,14 @@ function findCurrentProject(projects, cwd) {
   return best
 }
 
+function selectCurrentProject(projects, nativeProjectId, cwd) {
+  const listed = (projects || []).filter(project => !project.archived && project.board_slug)
+  const native = listed.find(project => project.id === nativeProjectId) || null
+  if (native) return { project: native, authority: 'native' }
+  const workspace = findCurrentProject(listed, cwd)
+  return { project: workspace, authority: workspace ? 'workspace' : null }
+}
+
 function projectSessionRows(projectTree) {
   const rows = []
   for (const repo of projectTree?.repos || []) {
@@ -74,14 +83,14 @@ function exactSessionId(projectTree) {
   return ids.length === 1 ? ids[0] : null
 }
 
-function buildAttentionModel({ projects, currentProjectId, snapshotsByProject, treesByProject, activeStoredSessionId }) {
+function buildAttentionModel({ projects, currentProjectId, currentProjectAuthority = 'workspace', snapshotsByProject, treesByProject, activeStoredSessionId }) {
   const listed = (projects || []).filter(project => !project.archived && project.board_slug)
   const currentProject = listed.find(project => project.id === currentProjectId) || null
   const currentCandidate = currentProject ? snapshotsByProject?.[currentProject.id] : null
   const currentMatches = Boolean(
     currentProject &&
       currentCandidate?.state === 'ok' &&
-      sessionBelongsToProject(treesByProject?.[currentProject.id], activeStoredSessionId)
+      (currentProjectAuthority === 'native' || sessionBelongsToProject(treesByProject?.[currentProject.id], activeStoredSessionId))
   )
   const current = currentMatches ? currentCandidate : { ...MISMATCH }
   const background = listed
@@ -158,11 +167,16 @@ async function loadStoredSessionId(runtimeSessionId) {
 async function loadAttention(ctx, cwd, runtimeSessionId) {
   const payload = await host.request('projects.list')
   const projects = (payload?.projects || []).filter(project => !project.archived && project.board_slug)
-  const currentProject = findCurrentProject(projects, cwd)
+  const currentSelection = selectCurrentProject(projects, payload?.active_id, cwd)
+  const currentProject = currentSelection.project
   const snapshotPairs = await Promise.all(
     projects.map(async project => [
       project.id,
-      await loadProjectSnapshot(ctx, project, project.id === currentProject?.id ? cwd : preferredFolder(project))
+      await loadProjectSnapshot(
+        ctx,
+        project,
+        project.id === currentProject?.id && currentSelection.authority === 'workspace' ? cwd : preferredFolder(project)
+      )
     ])
   )
   const snapshotsByProject = Object.fromEntries(snapshotPairs)
@@ -176,6 +190,7 @@ async function loadAttention(ctx, cwd, runtimeSessionId) {
   return buildAttentionModel({
     projects,
     currentProjectId: currentProject?.id || null,
+    currentProjectAuthority: currentSelection.authority,
     snapshotsByProject,
     treesByProject: Object.fromEntries(treePairs),
     activeStoredSessionId
@@ -307,7 +322,7 @@ function AttentionStatus({ ctx }) {
   const gateway = useValue(host.state.gateway)
   const { data: model } = useQuery({
     enabled: gateway === 'open',
-    queryKey: [ID, 'attention-v2', profile, sessionId, cwd],
+    queryKey: [ID, 'attention-v3', profile, sessionId, cwd],
     queryFn: () => loadAttention(ctx, cwd, sessionId),
     refetchInterval: 15_000,
     retry: false
@@ -327,7 +342,7 @@ function AttentionStatus({ ctx }) {
           ),
           type: 'button',
           children: [
-            jsx('span', { 'aria-hidden': true, className: 'size-1.5 rounded-full bg-(--ui-yellow) opacity-60' }),
+            jsx(StatusDot, { 'aria-hidden': true, className: 'scale-75 opacity-60', tone: 'warn' }),
             jsx('span', { children: model.totalCount })
           ]
         })
