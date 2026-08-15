@@ -3,6 +3,6 @@
   "label": "Project Attention",
   "description": "Read-only native Project attention from bound stock Kanban boards",
   "icon": "CircleDot",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "api": "plugin_api.py"
 }
