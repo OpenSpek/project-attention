@@ -1,5 +1,5 @@
 name: project-attention
-version: 0.2.2
+version: 0.2.3
 description: "Read-only native Project attention from bound stock Kanban boards."
 author: Luke Westlake
 kind: backend

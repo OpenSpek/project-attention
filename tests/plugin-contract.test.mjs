@@ -18,15 +18,17 @@ function loadCore() {
   const context = { URLSearchParams }
   vm.createContext(context)
   vm.runInContext(
-    `${match[1]}\nthis.core = { findCurrentProject, selectCurrentProject: typeof selectCurrentProject === 'function' ? selectCurrentProject : undefined, indicatorVisible, sessionBelongsToProject, exactSessionId, resolveStoredSessionId, buildAttentionModel, revealMatchedFolder: typeof revealMatchedFolder === 'function' ? revealMatchedFolder : undefined }`,
+    `${match[1]}\nthis.core = { indicatorVisible, exactSessionId, buildAttentionModel, revealMatchedFolder }`,
     context
   )
   return { source, ...context.core }
 }
 
 const projects = [
-  { id: 'p_current', name: 'Current Project', board_slug: 'current-board', folders: [{ path: 'C:/work/current', is_primary: true }] },
-  { id: 'p_other', name: 'Other Project', board_slug: 'other-board', folders: [{ path: 'C:/work/other', is_primary: true }] }
+  { id: 'p_alpha', name: 'Alpha Project', board_slug: 'alpha-board', folders: [{ path: 'C:/work/alpha', is_primary: true }] },
+  { id: 'p_beta', name: 'Beta Project', board_slug: 'beta-board', folders: [{ path: 'C:/work/beta', is_primary: true }] },
+  { id: 'p_archived', name: 'Archived Project', board_slug: 'archived-board', archived: true, folders: [{ path: 'C:/work/archived' }] },
+  { id: 'p_unbound', name: 'Unbound Project', folders: [{ path: 'C:/work/unbound' }] }
 ]
 
 const tree = (...sessions) => ({
@@ -43,17 +45,17 @@ const snapshot = (project, items = []) => ({
   items
 })
 
-function model({ currentItems = [], otherItems = [], activeStoredSessionId = 's_current', currentTree = tree({ id: 's_current' }), otherTree = tree({ id: 's_other' }) } = {}) {
+function model({ alphaItems = [], betaItems = [], alphaSnapshot, betaSnapshot, alphaTree = tree({ id: 's_alpha' }), betaTree = tree({ id: 's_beta' }) } = {}) {
   const { buildAttentionModel } = loadCore()
   return buildAttentionModel({
     projects,
-    currentProjectId: 'p_current',
     snapshotsByProject: {
-      p_current: snapshot(projects[0], currentItems),
-      p_other: snapshot(projects[1], otherItems)
+      p_alpha: alphaSnapshot ?? snapshot(projects[0], alphaItems),
+      p_beta: betaSnapshot ?? snapshot(projects[1], betaItems),
+      p_archived: snapshot(projects[2], [{ id: 't_archived' }]),
+      p_unbound: { state: 'ok', count: 1, items: [{ id: 't_unbound' }] }
     },
-    treesByProject: { p_current: currentTree, p_other: otherTree },
-    activeStoredSessionId
+    treesByProject: { p_alpha: alphaTree, p_beta: betaTree }
   })
 }
 
@@ -61,111 +63,56 @@ test('zero attention anywhere renders no status item', () => {
   const { indicatorVisible } = loadCore()
   const view = model()
   assert.equal(view.totalCount, 0)
+  assert.deepEqual(Array.from(view.projects), [])
   assert.equal(indicatorVisible(view), false)
 })
 
-test('current-only attention keeps current details primary', () => {
-  const { indicatorVisible } = loadCore()
-  const view = model({ currentItems: [{ id: 't_current', useful_summary: 'Needs operator' }] })
-  assert.equal(view.totalCount, 1)
-  assert.equal(view.current.count, 1)
-  assert.deepEqual(view.background, [])
-  assert.equal(indicatorVisible(view), true)
-})
-
-test('background-only attention appears as a concise Project footer signal without card leakage', () => {
-  const view = model({ otherItems: [{ id: 't_other', useful_summary: 'Waiting for review' }, { id: 't_other_2', useful_summary: 'Must stay hidden' }] })
-  assert.equal(view.totalCount, 2)
-  assert.equal(view.current.count, 0)
-  assert.equal(view.background.length, 1)
-  assert.equal(view.background[0].name, 'Other Project')
-  assert.equal(view.background[0].count, 2)
-  assert.equal(view.background[0].summary, 'Waiting for review')
-  assert.equal('items' in view.background[0], false)
-  assert.doesNotMatch(JSON.stringify(view.background[0]), /t_other_2|Must stay hidden/)
-})
-
-test('current and background attention are partitioned while the compact count is total actionable cards', () => {
+test('all-attention model includes every actionable Project without a current/background partition', () => {
   const view = model({
-    currentItems: [{ id: 't_current', useful_summary: 'Current reason' }],
-    otherItems: [{ id: 't_other', useful_summary: 'Other reason' }]
+    alphaItems: [{ id: 't_alpha', useful_summary: 'First reason' }],
+    betaItems: [{ id: 't_beta', useful_summary: 'Second reason' }]
   })
+
+  assert.deepEqual(Array.from(view.projects, project => project.name), ['Alpha Project', 'Beta Project'])
+  assert.equal(view.projects[0].snapshot.items[0].id, 't_alpha')
+  assert.equal(view.projects[1].snapshot.items[0].id, 't_beta')
   assert.equal(view.totalCount, 2)
-  assert.equal(view.current.count, 1)
-  assert.equal(view.background[0].count, 1)
+  assert.equal('current' in view, false)
+  assert.equal('background' in view, false)
 })
 
-test('detached or mismatched active session fails closed for current Project data', () => {
+test('zero, archived, unbound, and failed snapshots are omitted', () => {
   const view = model({
-    currentItems: [{ id: 't_current', useful_summary: 'Must not leak' }],
-    activeStoredSessionId: 's_detached'
+    alphaItems: [],
+    betaSnapshot: { state: 'mismatch', count: 9, items: [{ id: 'must-not-render' }] }
   })
-  assert.equal(view.current.state, 'mismatch')
-  assert.equal(view.current.count, 0)
-  assert.equal(JSON.stringify(view.current).includes('Must not leak'), false)
+  assert.deepEqual(Array.from(view.projects), [])
+  assert.equal(JSON.stringify(view).includes('must-not-render'), false)
 })
 
-test('runtime active-session identity resolves to the exact public stored-session key', () => {
-  const { resolveStoredSessionId } = loadCore()
-  const active = [
-    { id: 'runtime-a', session_key: 'stored-a', title: 'Renamed title' },
-    { id: 'runtime-b', session_key: 'stored-b', title: 'Another title' }
-  ]
-  assert.equal(resolveStoredSessionId(active, 'runtime-b'), 'stored-b')
-  assert.equal(resolveStoredSessionId(active, 'stored-b'), null)
-  assert.equal(resolveStoredSessionId(active, 'Another title'), null)
+test('total count sums actionable cards across included Projects', () => {
+  const view = model({
+    alphaItems: [{ id: 'a1' }, { id: 'a2' }],
+    betaItems: [{ id: 'b1' }]
+  })
+  assert.equal(view.totalCount, 3)
+  assert.equal(view.projects[0].count, 2)
+  assert.equal(view.projects[1].count, 1)
 })
 
-test('session membership uses exact stored identity or authoritative lineage root, never title', () => {
-  const { sessionBelongsToProject } = loadCore()
-  const projectTree = tree({ id: 's_tip', _lineage_root_id: 's_root', title: 'Renamed freely' })
-  assert.equal(sessionBelongsToProject(projectTree, 's_tip'), true)
-  assert.equal(sessionBelongsToProject(projectTree, 's_root'), true)
-  assert.equal(sessionBelongsToProject(projectTree, 'Renamed freely'), false)
-})
-
-test('exact background navigation resolves only a unique authoritative stored session ID', () => {
+test('Project navigation resolves only a unique authoritative stored session ID', () => {
   const { exactSessionId } = loadCore()
-  assert.equal(exactSessionId(tree({ id: 's_only' })), 's_only')
+  assert.equal(exactSessionId(tree({ id: 's_only', title: 'Rename-safe' })), 's_only')
   assert.equal(exactSessionId(tree({ id: 's_one' }, { id: 's_two' })), null)
   assert.equal(exactSessionId(null), null)
 })
 
-test('current Project uses the longest exact folder boundary match', () => {
-  const { findCurrentProject } = loadCore()
-  const candidates = [
-    { id: 'parent', board_slug: 'parent-board', folders: [{ path: 'C:/work' }] },
-    { id: 'alpha', board_slug: 'alpha-board', folders: [{ path: 'C:/work/alpha' }] }
-  ]
-  assert.equal(findCurrentProject(candidates, 'C:/work/alpha/sub').id, 'alpha')
-  assert.equal(findCurrentProject(candidates, 'C:/work/alphabet').id, 'parent')
-  assert.equal(findCurrentProject([{ id: 'alpha', folders: [{ path: 'C:/work/alpha' }] }], 'C:/work/alphabet'), null)
-  assert.equal(findCurrentProject(candidates, ''), null)
-})
-
-test('native active Project outranks stale host workspace and session context', () => {
-  const { selectCurrentProject, buildAttentionModel } = loadCore()
-  assert.equal(typeof selectCurrentProject, 'function')
-  const selected = selectCurrentProject(projects, 'p_other', 'C:/work/current')
-  assert.equal(selected.project.id, 'p_other')
-  assert.equal(selected.authority, 'native')
-
-  const view = buildAttentionModel({
-    projects,
-    currentProjectId: selected.project.id,
-    currentProjectAuthority: selected.authority,
-    snapshotsByProject: {
-      p_current: snapshot(projects[0]),
-      p_other: snapshot(projects[1], [{ id: 't_other', useful_summary: 'Blocked in active Project' }])
-    },
-    treesByProject: { p_current: tree({ id: 's_current' }), p_other: tree({ id: 's_other' }) },
-    activeStoredSessionId: 's_current'
+test('model keeps navigation fail-closed when a Project has multiple sessions', () => {
+  const view = model({
+    alphaItems: [{ id: 'a1' }],
+    alphaTree: tree({ id: 's_one' }, { id: 's_two' })
   })
-
-  assert.equal(view.currentMatches, true)
-  assert.equal(view.current.project.name, 'Other Project')
-  assert.equal(view.current.count, 1)
-  assert.deepEqual(view.background, [])
+  assert.equal(view.projects[0].sessionId, null)
 })
 
 test('status indicator uses the supported warning dot component', () => {
@@ -175,61 +122,58 @@ test('status indicator uses the supported warning dot component', () => {
   assert.doesNotMatch(source, /bg-\(--ui-yellow\)/)
 })
 
-test('routine matched view omits session success copy while preserving the mismatch exception', () => {
+test('UI makes no unsupported current or background Project claim', () => {
   const { source } = loadCore()
-  assert.doesNotMatch(source, /Current active session/)
-  assert.match(source, /No exact active-session Project match\./)
-  assert.doesNotMatch(source, /MetadataRow,\s*\{\s*label:\s*['"]Session['"]/)
+  assert.doesNotMatch(source, /Current Project|Other Project attention|No exact active-session Project match/i)
+  assert.doesNotMatch(source, /payload\?\.active_id|host\.state\.(activeSessionId|cwd)/)
+  assert.match(source, /model\.projects\.map\(project => jsx\(ProjectAttentionSection/)
   assert.doesNotMatch(source, /Open Kanban|host\.navigate\(['"]\/kanban|generic Kanban|last-selected board/i)
   assert.doesNotMatch(source, /name:\s*['"]warning['"]|⚠|border-\(--ui-yellow\)/i)
 })
 
 test('matched folder control reveals only the exact folder after explicit click', async () => {
   const { source, revealMatchedFolder } = loadCore()
-  assert.equal(typeof revealMatchedFolder, 'function')
   assert.match(source, /['"]aria-label['"]:\s*['"]Show matched folder in File Explorer['"]/)
   assert.match(source, /onClick:\s*\(\)\s*=>\s*revealMatchedFolder\(ctx,\s*snapshot\.matched_folder/)
   assert.doesNotMatch(source, /window\.hermesDesktop|child_process|shell\.|openExternal|host\.navigate\([^\n]*matched_folder/)
 
   const calls = []
   const ctx = { os: { revealPath: async value => { calls.push(['revealPath', value]); return true } } }
-  const notify = message => calls.push(['notify', message])
-  const result = await revealMatchedFolder(ctx, 'C:/work/current', notify)
+  const result = await revealMatchedFolder(ctx, 'C:/work/alpha', message => calls.push(['notify', message]))
 
   assert.equal(result, true)
-  assert.deepEqual(calls, [['revealPath', 'C:/work/current']])
+  assert.deepEqual(calls, [['revealPath', 'C:/work/alpha']])
 })
 
 test('failed folder reveal reports an error without crashing or mutating state', async () => {
   const { revealMatchedFolder } = loadCore()
-  assert.equal(typeof revealMatchedFolder, 'function')
-  const snapshot = Object.freeze({ matched_folder: 'C:/work/current', count: 1 })
-  const before = JSON.stringify(snapshot)
+  const frozen = Object.freeze({ matched_folder: 'C:/work/alpha', count: 1 })
+  const before = JSON.stringify(frozen)
 
   for (const revealPath of [async () => false, async () => { throw new Error('blocked') }]) {
     const notices = []
-    const result = await revealMatchedFolder({ os: { revealPath } }, snapshot.matched_folder, message => notices.push(message))
+    const result = await revealMatchedFolder({ os: { revealPath } }, frozen.matched_folder, message => notices.push(message))
     assert.equal(result, false)
     assert.deepEqual(notices, ['Could not show the matched folder in File Explorer.'])
-    assert.equal(JSON.stringify(snapshot), before)
+    assert.equal(JSON.stringify(frozen), before)
   }
 })
 
-test('background row opens only its exact supported session mapping', () => {
+test('Project heading opens only its exact supported session mapping', () => {
   const { source } = loadCore()
   assert.match(source, /host\.openSession\(project\.sessionId\)/)
-  assert.match(source, /project\.sessionId\s*\?/)
+  assert.match(source, /project\.sessionId\s*\n\s*\?/)
   assert.doesNotMatch(source, /host\.openSession\([^\n]*(title|name)/)
 })
 
-test('package metadata identifies the v0.2.2 release consistently', () => {
+test('package metadata identifies the v0.2.3 release consistently', () => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   const pluginYaml = fs.readFileSync(pluginYamlPath, 'utf8')
-  assert.equal(manifest.version, '0.2.2')
-  assert.match(pluginYaml, /^version:\s*0\.2\.2$/m)
+  assert.equal(manifest.version, '0.2.3')
+  assert.match(pluginYaml, /^version:\s*0\.2\.3$/m)
 })
 
-test('package metadata also avoids an alarm-style warning triangle', () => {
+test('package metadata avoids an alarm-style warning triangle', () => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   assert.notEqual(manifest.icon, 'AlertTriangle')
 })

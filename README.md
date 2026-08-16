@@ -2,17 +2,17 @@
 
 A small, removable, read-only Hermes Desktop plugin that connects native Projects, their bound workspace folders and stock Kanban boards, and exact stored sessions.
 
-Project Attention stays invisible when everything is clear. When a current or background Project has blocked or review attention, one quiet amber status item appears with the actionable count.
+Project Attention stays invisible when everything is clear. When any Project has blocked or review attention, one quiet amber status item appears with the total actionable count.
 
 ![Project Attention popup](assets/project-attention.png)
 
 ## What it does
 
 - Shows one calm status item only when blocked/review attention exists.
-- Keeps the current Project's details primary.
-- Shows background Project attention in a compact footer.
+- Shows every Project that currently has blocked/review attention.
+- Omits Projects with zero actionable attention.
 - Reveals the exact matched workspace folder in the operating system's file manager.
-- Opens a background Project session only when one authoritative stored-session mapping exists.
+- Opens a Project session only when one authoritative stored-session mapping exists.
 - Fails closed when Project, folder, board, or session identity cannot be proven.
 
 ## What it does not do
@@ -72,8 +72,8 @@ Removal does not alter Projects, sessions, Kanban cards, or workspace files beca
 
 Project Attention considers blocked and review cards actionable.
 
-- **Current Project:** exact Project, folder, board, and card details.
-- **Background Projects:** compact count/summary rows.
+- **Projects needing attention:** exact Project, folder, board, and card details.
+- **Projects with zero attention:** omitted.
 - **No attention:** no status item.
 - **Mismatch or ambiguity:** normal details are withheld; session navigation and folder actions fail closed.
 
@@ -105,7 +105,9 @@ The release candidate was also dogfooded in a live native Project: zero-attentio
 
 ## Known limitation
 
-A background Project with zero or multiple authoritative stored sessions is informational only. Project Attention does not guess which session to open; use the native Projects sidebar to choose.
+A Project with zero or multiple authoritative stored sessions is informational only. Project Attention does not guess which session to open; use the native Projects sidebar to choose.
+
+Hermes Desktop v0.20.1 does not expose focused-session identity through the public plugin SDK, so this release deliberately makes no “current Project” claim. It presents the complete actionable Project set instead of guessing from persistent Project scope or primary-session state.
 
 ## License
 

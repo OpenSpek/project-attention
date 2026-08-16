@@ -18,41 +18,6 @@ const ID = 'project-attention'
 /* PROJECT_ATTENTION_CORE_START */
 const MISMATCH = { state: 'mismatch', count: 0, items: [] }
 
-function normalizedPath(value) {
-  return String(value || '').trim().replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
-}
-
-function pathContains(folder, cwd) {
-  const base = normalizedPath(folder)
-  const target = normalizedPath(cwd)
-  return Boolean(base && target && (target === base || target.startsWith(`${base}/`)))
-}
-
-function findCurrentProject(projects, cwd) {
-  if (!cwd) return null
-  let best = null
-  let bestLength = -1
-  for (const project of projects || []) {
-    if (project.archived) continue
-    for (const folder of project.folders || []) {
-      const candidate = normalizedPath(folder.path)
-      if (pathContains(candidate, cwd) && candidate.length > bestLength) {
-        best = project
-        bestLength = candidate.length
-      }
-    }
-  }
-  return best
-}
-
-function selectCurrentProject(projects, nativeProjectId, cwd) {
-  const listed = (projects || []).filter(project => !project.archived && project.board_slug)
-  const native = listed.find(project => project.id === nativeProjectId) || null
-  if (native) return { project: native, authority: 'native' }
-  const workspace = findCurrentProject(listed, cwd)
-  return { project: workspace, authority: workspace ? 'workspace' : null }
-}
-
 function projectSessionRows(projectTree) {
   const rows = []
   for (const repo of projectTree?.repos || []) {
@@ -63,38 +28,15 @@ function projectSessionRows(projectTree) {
   return rows
 }
 
-function resolveStoredSessionId(activeSessions, runtimeSessionId) {
-  const runtime = String(runtimeSessionId || '').trim()
-  if (!runtime) return null
-  const exact = (activeSessions || []).find(session => session.id === runtime)
-  const stored = String(exact?.session_key || '').trim()
-  return stored || null
-}
-
-function sessionBelongsToProject(projectTree, sessionId) {
-  const target = String(sessionId || '').trim()
-  if (!target) return false
-  return projectSessionRows(projectTree).some(session => session.id === target || session._lineage_root_id === target)
-}
-
 function exactSessionId(projectTree) {
   if (Number(projectTree?.sessionCount) !== 1) return null
   const ids = [...new Set(projectSessionRows(projectTree).map(session => String(session.id || '').trim()).filter(Boolean))]
   return ids.length === 1 ? ids[0] : null
 }
 
-function buildAttentionModel({ projects, currentProjectId, currentProjectAuthority = 'workspace', snapshotsByProject, treesByProject, activeStoredSessionId }) {
+function buildAttentionModel({ projects, snapshotsByProject, treesByProject }) {
   const listed = (projects || []).filter(project => !project.archived && project.board_slug)
-  const currentProject = listed.find(project => project.id === currentProjectId) || null
-  const currentCandidate = currentProject ? snapshotsByProject?.[currentProject.id] : null
-  const currentMatches = Boolean(
-    currentProject &&
-      currentCandidate?.state === 'ok' &&
-      (currentProjectAuthority === 'native' || sessionBelongsToProject(treesByProject?.[currentProject.id], activeStoredSessionId))
-  )
-  const current = currentMatches ? currentCandidate : { ...MISMATCH }
-  const background = listed
-    .filter(project => project.id !== currentProject?.id)
+  const attentionProjects = listed
     .map(project => {
       const snapshot = snapshotsByProject?.[project.id]
       if (snapshot?.state !== 'ok' || Number(snapshot.count) <= 0) return null
@@ -102,13 +44,13 @@ function buildAttentionModel({ projects, currentProjectId, currentProjectAuthori
         id: project.id,
         name: project.name || 'Unnamed Project',
         count: Number(snapshot.count),
-        summary: String(snapshot.items?.[0]?.useful_summary || ''),
+        snapshot,
         sessionId: exactSessionId(treesByProject?.[project.id])
       }
     })
     .filter(Boolean)
-  const totalCount = Number(current.count || 0) + background.reduce((sum, project) => sum + project.count, 0)
-  return { current, currentProject, currentMatches, background, totalCount }
+  const totalCount = attentionProjects.reduce((sum, project) => sum + project.count, 0)
+  return { projects: attentionProjects, totalCount }
 }
 
 function indicatorVisible(model) {
@@ -154,46 +96,19 @@ async function loadProjectTree(projectId) {
   }
 }
 
-async function loadStoredSessionId(runtimeSessionId) {
-  if (!runtimeSessionId) return null
-  try {
-    const payload = await host.request('session.active_list', { current_session_id: runtimeSessionId })
-    return resolveStoredSessionId(payload?.sessions, runtimeSessionId)
-  } catch {
-    return null
-  }
-}
-
-async function loadAttention(ctx, cwd, runtimeSessionId) {
+async function loadAttention(ctx) {
   const payload = await host.request('projects.list')
   const projects = (payload?.projects || []).filter(project => !project.archived && project.board_slug)
-  const currentSelection = selectCurrentProject(projects, payload?.active_id, cwd)
-  const currentProject = currentSelection.project
   const snapshotPairs = await Promise.all(
-    projects.map(async project => [
-      project.id,
-      await loadProjectSnapshot(
-        ctx,
-        project,
-        project.id === currentProject?.id && currentSelection.authority === 'workspace' ? cwd : preferredFolder(project)
-      )
-    ])
+    projects.map(async project => [project.id, await loadProjectSnapshot(ctx, project, preferredFolder(project))])
   )
   const snapshotsByProject = Object.fromEntries(snapshotPairs)
-  const mappedProjects = projects.filter(
-    project => project.id === currentProject?.id || Number(snapshotsByProject[project.id]?.count) > 0
-  )
-  const [activeStoredSessionId, treePairs] = await Promise.all([
-    loadStoredSessionId(runtimeSessionId),
-    Promise.all(mappedProjects.map(async project => [project.id, await loadProjectTree(project.id)]))
-  ])
+  const actionableProjects = projects.filter(project => Number(snapshotsByProject[project.id]?.count) > 0)
+  const treePairs = await Promise.all(actionableProjects.map(async project => [project.id, await loadProjectTree(project.id)]))
   return buildAttentionModel({
     projects,
-    currentProjectId: currentProject?.id || null,
-    currentProjectAuthority: currentSelection.authority,
     snapshotsByProject,
-    treesByProject: Object.fromEntries(treePairs),
-    activeStoredSessionId
+    treesByProject: Object.fromEntries(treePairs)
   })
 }
 
@@ -241,89 +156,53 @@ function AttentionItem({ item }) {
   })
 }
 
-function BackgroundProjectRow({ project }) {
+function ProjectHeading({ project }) {
   const content = jsxs('span', {
-    className: 'flex min-w-0 flex-1 items-start justify-between gap-3',
+    className: 'flex min-w-0 flex-1 items-center justify-between gap-3',
     children: [
-      jsxs('span', {
-        className: 'min-w-0',
-        children: [
-          jsx('span', { className: 'block truncate text-xs font-medium text-(--ui-text-secondary)', children: project.name }),
-          project.summary
-            ? jsx('span', { className: 'block truncate text-[0.6875rem] text-(--ui-text-quaternary)', children: project.summary })
-            : null
-        ]
-      }),
+      jsx('span', { className: 'truncate text-sm font-medium text-(--ui-text-secondary)', children: project.name }),
       jsx('span', { className: 'shrink-0 text-xs tabular-nums text-(--ui-text-tertiary)', children: project.count })
     ]
   })
-  return project.sessionId ?
-    jsx('button', {
-      'aria-label': `Open ${project.name}`,
-      className: 'flex w-full rounded-sm px-1 py-1.5 text-left transition-colors hover:bg-(--chrome-action-hover) focus-visible:outline focus-visible:outline-1 focus-visible:outline-(--ui-accent)',
-      onClick: () => host.openSession(project.sessionId),
-      type: 'button',
-      children: content
-    }) :
-    jsx('div', { className: 'flex w-full px-1 py-1.5', children: content })
+  return project.sessionId
+    ? jsx('button', {
+        'aria-label': `Open ${project.name}`,
+        className: 'flex w-full rounded-sm text-left transition-colors hover:text-(--ui-text-primary) focus-visible:outline focus-visible:outline-1 focus-visible:outline-(--ui-accent)',
+        onClick: () => host.openSession(project.sessionId),
+        type: 'button',
+        children: content
+      })
+    : jsx('div', { className: 'flex w-full', children: content })
 }
 
-function CurrentProjectSection({ ctx, model }) {
-  if (!model.currentMatches) {
-    return jsxs('div', {
-      className: 'flex flex-col gap-1 p-3',
-      children: [
-        jsx('span', { className: 'text-xs font-medium text-(--ui-text-secondary)', children: 'Current Project' }),
-        jsx('span', { className: 'text-xs text-(--ui-text-quaternary)', children: 'No exact active-session Project match.' })
-      ]
-    })
-  }
-
-  const snapshot = model.current
-  return jsxs('div', {
+function ProjectAttentionSection({ ctx, project }) {
+  const snapshot = project.snapshot
+  return jsxs('section', {
+    className: 'border-b border-(--ui-stroke-secondary) last:border-b-0',
     children: [
       jsxs('div', {
-        className: 'flex flex-col gap-2 border-b border-(--ui-stroke-secondary) p-3',
+        className: 'flex flex-col gap-2 p-3',
         children: [
-          jsx(MetadataRow, { label: 'Project', value: snapshot.project.name }),
+          jsx(ProjectHeading, { project }),
           jsx(FolderMetadataRow, { ctx, snapshot }),
           jsx(MetadataRow, { label: 'Board', value: snapshot.board.slug })
         ]
       }),
-      Number(snapshot.count) > 0
-        ? jsx(ScrollArea, {
-            className: 'max-h-64 px-3',
-            children: snapshot.items.map(item => jsx(AttentionItem, { item }, item.id))
-          })
-        : jsx('div', {
-            className: 'px-3 py-4 text-xs text-(--ui-text-quaternary)',
-            children: 'No blocked or review cards in the current Project.'
-          })
-    ]
-  })
-}
-
-function OtherProjectsSection({ projects }) {
-  return jsxs('div', {
-    className: 'border-t border-(--ui-stroke-secondary) p-3',
-    children: [
-      jsx('div', { className: 'mb-1 text-[0.6875rem] font-medium text-(--ui-text-tertiary)', children: 'Other Project attention' }),
-      projects.length
-        ? jsx('div', { className: 'flex flex-col', children: projects.map(project => jsx(BackgroundProjectRow, { project }, project.id)) })
-        : jsx('div', { className: 'text-[0.6875rem] text-(--ui-text-quaternary)', children: 'No other Projects need attention.' })
+      jsx('div', {
+        className: 'border-t border-(--ui-stroke-secondary) px-3',
+        children: snapshot.items.map(item => jsx(AttentionItem, { item }, item.id))
+      })
     ]
   })
 }
 
 function AttentionStatus({ ctx }) {
-  const cwd = useValue(host.state.cwd)
-  const sessionId = useValue(host.state.activeSessionId)
   const profile = useValue(host.state.profile)
   const gateway = useValue(host.state.gateway)
   const { data: model } = useQuery({
     enabled: gateway === 'open',
-    queryKey: [ID, 'attention-v3', profile, sessionId, cwd],
-    queryFn: () => loadAttention(ctx, cwd, sessionId),
+    queryKey: [ID, 'attention-v4', profile],
+    queryFn: () => loadAttention(ctx),
     refetchInterval: 15_000,
     retry: false
   })
@@ -359,8 +238,10 @@ function AttentionStatus({ ctx }) {
               jsx('span', { className: 'text-xs tabular-nums text-(--ui-text-tertiary)', children: `${model.totalCount} actionable` })
             ]
           }),
-          jsx(CurrentProjectSection, { ctx, model }),
-          jsx(OtherProjectsSection, { projects: model.background })
+          jsx(ScrollArea, {
+            className: 'max-h-64',
+            children: model.projects.map(project => jsx(ProjectAttentionSection, { ctx, project }, project.id))
+          })
         ]
       })
     ]
