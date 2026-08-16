@@ -3,73 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Project Attention v2.1 — contained preview</title>
+<title>Project Attention v0.2.3 — contained preview</title>
 <style>
-  :root {
-    color-scheme: dark;
-    --page: #101113;
-    --surface: #17191c;
-    --surface-raised: #1d2024;
-    --text: #eceef1;
-    --text-2: #b9bec6;
-    --text-3: #858c96;
-    --line: #30343a;
-    --hover: #272b30;
-    --amber: #b38a4c;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; background: var(--page); color: var(--text); font: 14px/1.45 "Segoe UI", sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
-  h1 { margin: 0; font-size: 16px; letter-spacing: -0.01em; }
-  .subtitle { color: var(--text-3); font-size: 12px; }
-  .controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-  button { color: inherit; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; font: inherit; cursor: pointer; }
-  button:hover { background: var(--hover); }
-  button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
-  button[aria-pressed="true"] { border-color: var(--text-3); background: var(--hover); }
-  main { display: grid; place-items: center; min-height: calc(100vh - 82px); padding: 26px; }
-  .desktop { width: min(800px, 100%); min-height: 470px; border: 1px solid var(--line); border-radius: 9px; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); box-shadow: 0 18px 60px rgb(0 0 0 / 0.28); }
-  .workspace { position: relative; flex: 1; display: grid; place-items: center; color: var(--text-3); padding: 32px; text-align: center; }
-  .statusbar { min-height: 29px; display: flex; justify-content: flex-end; align-items: stretch; border-top: 1px solid var(--line); background: var(--page); }
-  .chip { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 0; background: transparent; padding-inline: 10px; color: var(--text-2); font-size: 12px; font-weight: 650; }
-  .chip:hover { background: var(--hover); }
-  .dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--amber); opacity: 0.78; }
-  .popover { position: absolute; right: 20px; bottom: 12px; width: min(420px, calc(100vw - 74px)); border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); box-shadow: 0 14px 44px rgb(0 0 0 / 0.36); overflow: hidden; text-align: left; }
-  .popover-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-  .popover-head strong { font-size: 13px; }
-  .total { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .current-meta { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 5px 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
-  .current-meta dt { color: var(--text-3); }
-  .current-meta dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
-  .folder-button { width: 100%; min-width: 0; overflow: hidden; border: 0; background: transparent; padding: 0; color: var(--text-2); text-align: left; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; text-overflow: ellipsis; white-space: nowrap; }
-  .folder-button:hover { background: transparent; color: var(--text); }
-  .cards { padding: 0 14px; }
-  .card { padding: 10px 0; }
-  .card + .card { border-top: 1px solid var(--line); }
-  .card-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; font-weight: 650; }
-  .badge { border-radius: 4px; padding: 1px 6px; color: var(--text-2); background: var(--hover); font-size: 11px; font-weight: 600; }
-  .summary { color: var(--text-3); font-size: 12px; margin-top: 4px; }
-  .task-id { color: var(--text-3); font: 10px ui-monospace, monospace; margin-top: 4px; }
-  .clear { padding: 14px; color: var(--text-3); font-size: 12px; }
-  .other { border-top: 1px solid var(--line); padding: 10px 14px 11px; }
-  .other-title { margin-bottom: 4px; color: var(--text-3); font-size: 11px; font-weight: 650; }
-  .project-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; width: 100%; padding: 7px 5px; border: 0; background: transparent; text-align: left; }
-  button.project-row:hover { background: var(--hover); }
-  .project-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 12px; font-weight: 650; }
-  .project-summary { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 11px; }
-  .project-count { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .state-note { max-width: 440px; }
-  .state-note strong { display: block; margin-bottom: 5px; color: var(--text); }
-  [hidden] { display: none !important; }
-  @media (max-width: 680px) {
-    header { align-items: flex-start; flex-direction: column; }
-    .controls { justify-content: flex-start; }
-    main { padding: 14px; }
-    .desktop { min-height: 530px; }
-    .popover { right: 10px; width: calc(100vw - 48px); }
-    button { min-height: 44px; }
-  }
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+  :root { color-scheme: dark; --page:#101113; --surface:#17191c; --raised:#1d2024; --text:#eceef1; --text-2:#b9bec6; --text-3:#858c96; --line:#30343a; --hover:#272b30; --amber:#b38a4c; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:var(--page); color:var(--text); font:14px/1.45 "Segoe UI",sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 22px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:16px; } .subtitle,.total,.summary,.task-id,.count { color:var(--text-3); }
+  .subtitle,.total,.summary { font-size:12px; } .controls { display:flex; gap:6px; }
+  button { color:inherit; background:var(--raised); border:1px solid var(--line); border-radius:5px; padding:6px 10px; font:inherit; cursor:pointer; }
+  button:hover { background:var(--hover); } button:focus-visible { outline:2px solid Highlight; outline-offset:2px; }
+  button[aria-pressed="true"] { border-color:var(--text-3); background:var(--hover); }
+  main { display:grid; place-items:center; min-height:calc(100vh - 82px); padding:26px; }
+  .desktop { width:min(800px,100%); min-height:470px; border:1px solid var(--line); border-radius:9px; display:flex; flex-direction:column; overflow:hidden; background:var(--surface); box-shadow:0 18px 60px rgb(0 0 0 / .28); }
+  .workspace { position:relative; flex:1; display:grid; place-items:center; color:var(--text-3); padding:32px; text-align:center; }
+  .statusbar { min-height:29px; display:flex; justify-content:flex-end; border-top:1px solid var(--line); background:var(--page); }
+  .chip { display:inline-flex; align-items:center; gap:6px; border:0; border-radius:0; background:transparent; padding-inline:10px; color:var(--text-2); font-size:12px; font-weight:650; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--amber); opacity:.78; }
+  .popover { position:absolute; right:20px; bottom:12px; width:min(420px,calc(100vw - 74px)); max-height:390px; overflow:auto; border:1px solid var(--line); border-radius:8px; background:var(--raised); box-shadow:0 14px 44px rgb(0 0 0 / .36); text-align:left; }
+  .popover-head { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; gap:14px; padding:12px 14px; border-bottom:1px solid var(--line); background:var(--raised); }
+  .popover-head strong { font-size:13px; }
+  .project { border-bottom:1px solid var(--line); } .project:last-child { border-bottom:0; }
+  .project-meta { padding:12px 14px; } .project-title { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:9px; color:var(--text-2); font-weight:650; }
+  .project-title button { width:100%; display:flex; justify-content:space-between; border:0; background:transparent; padding:0; text-align:left; font-weight:650; }
+  dl { display:grid; grid-template-columns:94px minmax(0,1fr); gap:5px 10px; margin:0; font-size:12px; } dt { color:var(--text-3); } dd { margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-2); }
+  .folder { width:100%; min-width:0; overflow:hidden; border:0; background:transparent; padding:0; color:var(--text-2); text-align:left; text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:2px; text-overflow:ellipsis; white-space:nowrap; }
+  .cards { padding:0 14px; border-top:1px solid var(--line); } .card { padding:10px 0; } .card+.card { border-top:1px solid var(--line); }
+  .card-head { display:flex; justify-content:space-between; align-items:start; gap:12px; font-weight:650; } .badge { border-radius:4px; padding:1px 6px; color:var(--text-2); background:var(--hover); font-size:11px; }
+  .summary { margin-top:4px; } .task-id { margin-top:4px; font:10px ui-monospace,monospace; } .state-note { max-width:440px; } .state-note strong { display:block; margin-bottom:5px; color:var(--text); }
+  [hidden] { display:none!important; }
 </style>
 </head>
 <body>
@@ -77,10 +39,8 @@
   <div><h1>Project Attention</h1><div class="subtitle">Read-only Hermes Desktop plugin</div></div>
   <div class="controls" aria-label="Preview state">
     <button data-state="empty" aria-pressed="false">Empty</button>
-    <button data-state="current" aria-pressed="false">Current attention</button>
-    <button data-state="background" aria-pressed="false">Background-only</button>
-    <button data-state="combined" aria-pressed="true">Current + background</button>
-    <button data-state="mismatch" aria-pressed="false">Mismatch</button>
+    <button data-state="one" aria-pressed="false">One Project</button>
+    <button data-state="multiple" aria-pressed="true">Multiple Projects</button>
   </div>
 </header>
 <main>
@@ -89,86 +49,25 @@
       <div class="state-note" id="state-note"></div>
       <section class="popover" id="popover" aria-label="Project Attention details">
         <div class="popover-head"><strong>Project Attention</strong><span class="total" id="total"></span></div>
-        <div id="current-section"></div>
-        <footer class="other">
-          <div class="other-title">Other Project attention</div>
-          <div id="other-projects"></div>
-        </footer>
+        <div id="projects"></div>
       </section>
     </div>
     <div class="statusbar"><button class="chip" id="chip"><span class="dot" aria-hidden="true"></span><span id="chip-count"></span></button></div>
   </section>
 </main>
 <script>
-const project = {
-  name: 'Project Attention',
-  folder: 'C:\\Projects\\project-attention-demo',
-  board: 'project-attention'
+const alpha={name:'Website refresh',folder:'C:\\Projects\\website-refresh-demo',board:'website-refresh',exact:true,items:[{id:'task-201',title:'Approve homepage copy',status:'review',summary:'The revised copy is ready for operator review.'},{id:'task-202',title:'Confirm launch window',status:'blocked',summary:'Waiting for a launch-date decision.'}]}
+const beta={name:'Customer portal',folder:'C:\\Projects\\customer-portal-demo',board:'customer-portal',exact:false,items:[{id:'task-301',title:'Authorize pilot access',status:'blocked',summary:'Needs an operator decision before the pilot can proceed.'}]}
+const states={
+  empty:{note:['No persistent clutter','Projects with zero blocked/review attention are omitted, so the status item is absent.'],projects:[]},
+  one:{note:['Only actionable Projects appear','One Project needs attention; clear Projects remain hidden.'],projects:[alpha]},
+  multiple:{note:['Complete actionable Project set','Every Project needing attention appears without an unsupported current/background claim.'],projects:[alpha,beta]}
 }
-const states = {
-  empty: {
-    note: ['No persistent clutter', 'No native Project has blocked or review attention, so the single status item is absent.'],
-    current: [], other: []
-  },
-  current: {
-    note: ['Current Project first', 'The popup leads with this Project’s matched-folder and bound-board context.'],
-    current: [
-      { id: 'task-101', title: 'Confirm workspace binding', status: 'blocked', summary: 'Needs confirmation of the intended native Project folder.' },
-      { id: 'task-102', title: 'Review release notes', status: 'review', summary: 'The release notes are ready for a quick inspection.' }
-    ],
-    other: []
-  },
-  background: {
-    note: ['Background signal without a global inbox', 'The current Project is clear; another native Project appears only in the compact footer.'],
-    current: [],
-    other: [{ name: 'Website refresh', count: 2, summary: 'Two changes need review.', exact: true }]
-  },
-  combined: {
-    note: ['Current and background are partitioned', 'The compact count is total actionable work; the popup makes its source clear.'],
-    current: [{ id: 'task-102', title: 'Review release notes', status: 'review', summary: 'The release notes are ready for a quick inspection.' }],
-    other: [
-      { name: 'Website refresh', count: 2, summary: 'Two changes need review.', exact: true },
-      { name: 'Customer portal', count: 1, summary: 'Waiting on an operator decision.', exact: false }
-    ]
-  },
-  mismatch: {
-    note: ['Fail closed', 'The active session does not exactly belong to the folder-matched Project, so current Project data is not shown.'],
-    mismatch: true, current: [], other: []
-  }
-}
-function card(item) {
-  return `<article class="card"><div class="card-head"><span>${item.title}</span><span class="badge">${item.status}</span></div><div class="summary">${item.summary}</div><div class="task-id">${item.id}</div></article>`
-}
-function currentSection(state) {
-  if (state.mismatch) return '<div class="clear"><strong>Current Project</strong><br>No exact active-session Project match.</div>'
-  const meta = `<dl class="current-meta"><dt>Project</dt><dd>${project.name}</dd><dt>Folder match</dt><dd><button class="folder-button" type="button" aria-label="Show matched folder in File Explorer" title="${project.folder}">${project.folder}</button></dd><dt>Board</dt><dd>${project.board}</dd></dl>`
-  return meta + (state.current.length ? `<div class="cards">${state.current.map(card).join('')}</div>` : '<div class="clear">No blocked or review cards in the current Project.</div>')
-}
-function otherRow(item) {
-  const body = `<span><span class="project-name">${item.name}</span><span class="project-summary">${item.summary}</span></span><span class="project-count">${item.count}</span>`
-  return item.exact ? `<button class="project-row" aria-label="Open ${item.name}">${body}</button>` : `<div class="project-row">${body}</div>`
-}
-function show(name) {
-  const state = states[name]
-  document.querySelectorAll('[data-state]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.state === name)))
-  const currentCount = state.current.length
-  const otherCount = state.other.reduce((sum, item) => sum + item.count, 0)
-  const total = currentCount + otherCount
-  const visible = total > 0
-  document.querySelector('#chip').hidden = !visible
-  document.querySelector('#popover').hidden = !visible
-  document.querySelector('#state-note').hidden = visible
-  document.querySelector('#chip-count').textContent = total
-  document.querySelector('#chip').setAttribute('aria-label', `${total} Project attention item${total === 1 ? '' : 's'}`)
-  document.querySelector('#total').textContent = `${total} actionable`
-  document.querySelector('#current-section').innerHTML = currentSection(state)
-  document.querySelector('#other-projects').innerHTML = state.other.length ? state.other.map(otherRow).join('') : '<div class="project-summary">No other Projects need attention.</div>'
-  document.querySelector('#state-note').innerHTML = `<strong>${state.note[0]}</strong>${state.note[1]}`
-  document.body.dataset.previewState = name
-}
-document.querySelectorAll('[data-state]').forEach(button => button.addEventListener('click', () => show(button.dataset.state)))
-const requestedState = new URLSearchParams(location.search).get('state')
-show(Object.hasOwn(states, requestedState) ? requestedState : 'combined')
+function card(item){return `<article class="card"><div class="card-head"><span>${item.title}</span><span class="badge">${item.status}</span></div><div class="summary">${item.summary}</div><div class="task-id">${item.id}</div></article>`}
+function project(item){const count=item.items.length;const heading=item.exact?`<button aria-label="Open ${item.name}"><span>${item.name}</span><span class="count">${count}</span></button>`:`<span>${item.name}</span><span class="count">${count}</span>`;return `<section class="project"><div class="project-meta"><div class="project-title">${heading}</div><dl><dt>Folder match</dt><dd><button class="folder" aria-label="Show matched folder in File Explorer">${item.folder}</button></dd><dt>Board</dt><dd>${item.board}</dd></dl></div><div class="cards">${item.items.map(card).join('')}</div></section>`}
+function show(name){const state=states[name];const total=state.projects.reduce((sum,p)=>sum+p.items.length,0);document.querySelectorAll('[data-state]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.state===name)));document.querySelector('#chip').hidden=total===0;document.querySelector('#popover').hidden=total===0;document.querySelector('#state-note').hidden=total>0;document.querySelector('#chip-count').textContent=total;document.querySelector('#chip').setAttribute('aria-label',`${total} Project attention item${total===1?'':'s'}`);document.querySelector('#total').textContent=`${total} actionable`;document.querySelector('#projects').innerHTML=state.projects.map(project).join('');document.querySelector('#state-note').innerHTML=`<strong>${state.note[0]}</strong>${state.note[1]}`;document.body.dataset.previewState=name}
+document.querySelectorAll('[data-state]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.state)))
+const requested=new URLSearchParams(location.search).get('state');show(Object.hasOwn(states,requested)?requested:'multiple')
 </script>
 </body>
 </html>
